@@ -1,7 +1,7 @@
 import os
 import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, Dispatcher
 import firebase_admin
 from firebase_admin import credentials, db
 import secrets
@@ -43,8 +43,10 @@ try:
 except Exception as e:
     logger.critical(f"Firebase initialization failed: {e}")
 
-# --- BOT FUNCTIONS (Inka code yahan hai) ---
+# --- BOT FUNCTIONS ---
+
 def start(update: Update, context: CallbackContext):
+    # ... (Start function ka poora code waisa hi rahega) ...
     welcome_text = (
         "🚀 *𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗸𝗶𝗹𝗹𝗻𝗲𝗮𝘀𝘁!*\n\n"
         "📚 *𝗚𝗲𝘁 𝗙𝗿𝗲𝗲 𝗔𝗰𝗰𝗲𝘀𝘀 𝘁𝗼 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗖𝗼𝗻𝘁𝗲𝗻𝘁* —\n"
@@ -63,21 +65,48 @@ def start(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
+
+# --- YEH FUNCTION BADLA GAYA HAI ---
 def check_join_status(update: Update, context: CallbackContext):
+    """Checks channel membership using a more reliable method."""
     query = update.callback_query
     user_id = query.from_user.id
+    
     try:
-        status1 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_1_ID}", user_id=user_id)
-        status2 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_2_ID}", user_id=user_id)
-        if status1.status in ['member', 'administrator', 'creator'] and status2.status in ['member', 'administrator', 'creator']:
-            generate_and_send_token(query, user_id)
-        else:
+        # Dono channels ka ID (username ke saath @)
+        chat_id_1 = f"@{CHANNEL_1_ID}"
+        chat_id_2 = f"@{CHANNEL_2_ID}"
+        
+        # User ka status check karo
+        member1 = context.bot.get_chat_member(chat_id=chat_id_1, user_id=user_id)
+        member2 = context.bot.get_chat_member(chat_id=chat_id_2, user_id=user_id)
+        
+        # Check karo ki user 'left' ya 'kicked' to nahi hai
+        if member1.status in ['left', 'kicked'] or member2.status in ['left', 'kicked']:
             query.answer("❌ Please join both channels first!", show_alert=True)
+            return
+
+        # Agar user left nahi hai, to maan lo ki usne join kar liya hai.
+        # Yeh private channels ke liye behtar kaam karta hai.
+        generate_and_send_token(query, user_id)
+
+    except telegram.error.BadRequest as e:
+        # Agar "user not found" error aaye, iska matlab user ne join nahi kiya hai
+        if "user not found" in str(e).lower():
+            query.answer("❌ You must join both channels to get the token.", show_alert=True)
+        else:
+            # Agar koi aur BadRequest error (jaise 'chat not found') aaye
+            logger.error(f"Error checking membership for user {user_id}: {e}")
+            query.answer(f"Error: Could not check channel. Make sure bot is an admin.", show_alert=True)
+            
     except Exception as e:
-        logger.error(f"Error in check_join_status for user {user_id}: {e}")
-        query.answer("An error occurred. Please try again.", show_alert=True)
+        # Baki sabhi anjaan errors ke liye
+        logger.error(f"An unexpected error in check_join_status for user {user_id}: {e}")
+        query.answer("An unexpected error occurred. Please try again.", show_alert=True)
+
 
 def generate_and_send_token(query, user_id):
+    # ... (Yeh function waisa hi rahega) ...
     token = secrets.token_hex(8).upper()
     current_time_seconds = int(time.time())
     expiry_timestamp_seconds = current_time_seconds + (TOKEN_VALIDITY_MINUTES * 60)
@@ -92,34 +121,27 @@ def generate_and_send_token(query, user_id):
     query.edit_message_text(text=access_text, reply_markup=reply_markup, parse_mode='Markdown')
     query.answer("✅ Token Generated!")
 
-# --- WEB SERVER (WEBHOOK) SETUP ---
-app = Flask(__name__)
 
-# Initialize Updater and Dispatcher
+# --- WEB SERVER (WEBHOOK) SETUP (Yeh poora section waisa hi rahega) ---
+app = Flask(__name__)
 updater = Updater(TOKEN)
 dispatcher = updater.dispatcher
-
-# Register handlers
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CallbackQueryHandler(check_join_status, pattern='^check_join$'))
-
 @app.route(f'/{TOKEN}', methods=['POST'])
 def respond():
     update = Update.de_json(request.get_json(force=True), updater.bot)
     dispatcher.process_update(update)
     return 'ok'
-
 @app.route('/setwebhook', methods=['GET', 'POST'])
 def set_webhook():
     if WEBHOOK_URL:
-        # Webhook ko set karne ke liye 'updater' ka istemal karein
         s = updater.bot.set_webhook(f'{WEBHOOK_URL}/{TOKEN}')
         if s:
             return "webhook setup ok"
         else:
             return "webhook setup failed"
     return "No WEBHOOK_URL set."
-
 @app.route('/')
 def index():
     return 'Bot is alive!'
