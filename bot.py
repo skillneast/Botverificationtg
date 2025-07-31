@@ -15,15 +15,19 @@ import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION (Sab kuch yahan set hai) ---
+
+# Yeh Render ke Environment Variables se aayenge
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
-CHANNEL_1_USERNAME = os.environ.get('CHANNEL_1_USERNAME')
-CHANNEL_2_USERNAME = os.environ.get('CHANNEL_2_USERNAME')
-OWNER_USERNAME = os.environ.get('OWNER_USERNAME')
-WEBSITE_URL = os.environ.get('WEBSITE_URL')
 FIREBASE_DATABASE_URL = os.environ.get('FIREBASE_DATABASE_URL')
 FIREBASE_KEY_BASE64 = os.environ.get('FIREBASE_KEY_BASE64')
+
+# Yeh humne seedhe code mein daal diye hain (Hardcoded)
+CHANNEL_1_USERNAME = "skillneastreal"
+CHANNEL_2_USERNAME = "skillneast"
+OWNER_USERNAME = "neasthub"
+WEBSITE_URL = "https://skillneast.github.io/Skillneast/#"
 TOKEN_VALIDITY_MINUTES = 15
 
 # --- Firebase Setup ---
@@ -34,19 +38,22 @@ try:
         cred = credentials.Certificate(firebase_key_dict)
         firebase_admin.initialize_app(cred, {'databaseURL': FIREBASE_DATABASE_URL})
         logger.info("Firebase initialized successfully.")
+    else:
+        logger.warning("Firebase key not found. Database features will fail.")
 except Exception as e:
     logger.critical(f"FATAL: Firebase initialization failed. Error: {e}")
     exit()
 
 # --- BOT & FLASK INITIALIZATION ---
 app = Flask(__name__)
-updater = Updater(TOKEN, use_context=True) # use_context=True is important for v13
+updater = Updater(TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
 # --- BOT FUNCTIONS ---
 
 def start(update: Update, context: CallbackContext):
     """Sends the welcome message."""
+    # Aapka naya description
     welcome_text = (
         "🚀 *𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗸𝗶𝗹𝗹𝗻𝗲𝗮𝘀𝘁!*\n\n"
         "📚 *𝗚𝗲𝘁 𝗙𝗿𝗲𝗲 𝗔𝗰𝗰𝗲𝘀𝘀 𝘁𝗼 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗖𝗼𝗻𝘁𝗲𝗻𝘁* —\n"
@@ -56,6 +63,7 @@ def start(update: Update, context: CallbackContext):
         "🔐 *𝗔𝗰𝗰𝗲𝘀𝘀 𝗶𝘀 𝘀𝗲𝗰𝘂𝗿𝗲𝗱 𝘃𝗶𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝗺𝗲𝗺𝗯𝗲𝗿𝘀𝗵𝗶𝗽.*\n\n"
         "👉 *𝗣𝗹𝗲𝗮𝘀𝗲 𝗷𝗼𝗶𝗻 𝘁𝗵𝗲 𝗯𝗲𝗹𝗼𝘄 𝗰𝗵𝗮𝗻𝗻𝗲𝗹𝘀 𝘁𝗼 𝘂𝗻𝗹𝗼𝗰𝗸 𝘆𝗼𝘂𝗿 𝗱𝗮𝗶𝗹𝘆 𝗮𝗰𝗰𝗲𝘀𝘀 𝘁𝗼𝗸𝗲𝗻* 👇"
     )
+    # Buttons mein bhi hardcoded values use hongi
     keyboard = [
         [InlineKeyboardButton("📩 Join Skillneast", url=f"https://t.me/{CHANNEL_1_USERNAME}")],
         [InlineKeyboardButton("📩 Join Skillneast Backup", url=f"https://t.me/{CHANNEL_2_USERNAME}")],
@@ -66,17 +74,14 @@ def start(update: Update, context: CallbackContext):
     if update.message:
         update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# --- YEH FUNCTION BADLA GAYA HAI (No delay) ---
 def get_token_handler(update: Update, context: CallbackContext):
-    """Generates and sends the token instantly without checking."""
+    """Generates and sends the token instantly."""
     query = update.callback_query
     user_id = query.from_user.id
     
     logger.info(f"User {user_id} clicked 'I Joined'. Generating token instantly.")
     
-    # Token generate karo
-    token_string = f"{secrets.token_hex(6).upper()}/{secrets.token_hex(6).upper()}" # Example: 94E2DI2F/JG9WDX
-    
+    token_string = f"{secrets.token_hex(6).upper()}/{secrets.token_hex(6).upper()}"
     current_time_seconds = int(time.time())
     expiry_timestamp_seconds = current_time_seconds + (TOKEN_VALIDITY_MINUTES * 60)
     
@@ -88,7 +93,6 @@ def get_token_handler(update: Update, context: CallbackContext):
         query.answer("❌ An error occurred while generating your token. Please try again.", show_alert=True)
         return
     
-    # Text bilkul aapki image jaisa
     access_text = (
         "🎉 *Access Granted!*\n\n"
         "Here is your _one-time token_ for today:\n\n"
@@ -103,7 +107,6 @@ def get_token_handler(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Message ko edit karke token wala message dikhao
     query.edit_message_text(text=access_text, reply_markup=reply_markup, parse_mode='Markdown')
     query.answer("✅ Token Generated!")
 
