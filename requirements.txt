@@ -2,3 +2,4 @@ python-telegram-bot
 firebase-admin
 Flask
 gunicorn
+urllib3==1.26.15
