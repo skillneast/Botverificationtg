@@ -1,6 +1,5 @@
 import os
 import telegram
-# YEH LINE ZAROORI HAI - YAHIN SE 'Update' AATA HAI
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
 import firebase_admin
@@ -12,12 +11,16 @@ import time
 from flask import Flask
 from threading import Thread
 
-# --- CONFIGURATION (Render Environment Variables se aayega) ---
+# --- CONFIGURATION ---
+
+# Yeh humne seedhe code mein daal diye hain
+CHANNEL_1_ID = "skillneastreal"
+CHANNEL_2_ID = "skillneast"
+OWNER_USERNAME = "neasthub"
+
+# Yeh Render par Environment Variables se aayenge
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-CHANNEL_1_ID = os.environ.get('CHANNEL_1_ID')
-CHANNEL_2_ID = os.environ.get('CHANNEL_2_ID')
-WEBSITE_URL = os.environ.get('WEBSITE_URL')
-OWNER_USERNAME = os.environ.get('OWNER_USERNAME')
+WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://render.com') # Fallback URL
 FIREBASE_DATABASE_URL = os.environ.get('FIREBASE_DATABASE_URL')
 FIREBASE_KEY_BASE64 = os.environ.get('FIREBASE_KEY_BASE64')
 TOKEN_VALIDITY_MINUTES = 15
@@ -26,10 +29,7 @@ TOKEN_VALIDITY_MINUTES = 15
 def check_env_variables():
     required_vars = {
         "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
-        "CHANNEL_1_ID": CHANNEL_1_ID,
-        "CHANNEL_2_ID": CHANNEL_2_ID,
         "WEBSITE_URL": WEBSITE_URL,
-        "OWNER_USERNAME": OWNER_USERNAME,
         "FIREBASE_DATABASE_URL": FIREBASE_DATABASE_URL,
         "FIREBASE_KEY_BASE64": FIREBASE_KEY_BASE64
     }
@@ -66,9 +66,10 @@ def start(update: Update, context: CallbackContext):
         "👉 *𝗣𝗹𝗲𝗮𝘀𝗲 𝗷𝗼𝗶𝗻 𝘁𝗵𝗲 𝗯𝗲𝗹𝗼𝘄 𝗰𝗵𝗮𝗻𝗻𝗲𝗹𝘀 𝘁𝗼 𝘂𝗻𝗹𝗼𝗰𝗸 𝘆𝗼𝘂𝗿 𝗱𝗮𝗶𝗹𝘆 𝗮𝗰𝗰𝗲𝘀𝘀 𝘁𝗼𝗸𝗲𝗻* 👇"
     )
 
-    channel1_url = f"https://t.me/{CHANNEL_1_ID.replace('@', '')}" if CHANNEL_1_ID else None
-    channel2_url = f"https://t.me/{CHANNEL_2_ID.replace('@', '')}" if CHANNEL_2_ID else None
-    owner_url = f"https://t.me/{OWNER_USERNAME}" if OWNER_USERNAME else None
+    # Ab URLs seedhe code mein diye gaye variables se banenge
+    channel1_url = f"https://t.me/{CHANNEL_1_ID}"
+    channel2_url = f"https://t.me/{CHANNEL_2_ID}"
+    owner_url = f"https://t.me/{OWNER_USERNAME}"
 
     keyboard = [
         [InlineKeyboardButton("📩 Join Skillneast", url=channel1_url)],
@@ -84,8 +85,9 @@ def check_join_status(update: Update, context: CallbackContext):
     query = update.callback_query
     user_id = query.from_user.id
     try:
-        status1 = context.bot.get_chat_member(chat_id=CHANNEL_1_ID, user_id=user_id)
-        status2 = context.bot.get_chat_member(chat_id=CHANNEL_2_ID, user_id=user_id)
+        # Yahan hum '@' add karenge kyunki get_chat_member ko username ke saath '@' chahiye
+        status1 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_1_ID}", user_id=user_id)
+        status2 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_2_ID}", user_id=user_id)
         
         if status1.status in ['member', 'administrator', 'creator'] and \
            status2.status in ['member', 'administrator', 'creator']:
@@ -122,9 +124,13 @@ def generate_and_send_token(query, user_id):
         "✅ Paste this on the website to continue!\n"
         "⚠️ *Note: If you leave any channel, your access will be revoked.*"
     )
+    # WEBSITE_URL ab bhi environment variable se aa raha hai
+    website_url = WEBSITE_URL if WEBSITE_URL else "https://render.com"
+    owner_url = f"https://t.me/{OWNER_USERNAME}"
+    
     keyboard = [
-        [InlineKeyboardButton("🔐 Access Website", url=WEBSITE_URL)],
-        [InlineKeyboardButton("👑 Owner", url=f"https://t.me/{OWNER_USERNAME}")]
+        [InlineKeyboardButton("🔐 Access Website", url=website_url)],
+        [InlineKeyboardButton("👑 Owner", url=owner_url)]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     query.edit_message_text(text=access_text, reply_markup=reply_markup, parse_mode='Markdown')
