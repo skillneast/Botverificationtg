@@ -27,7 +27,6 @@ FIREBASE_KEY_BASE64 = os.environ.get('FIREBASE_KEY_BASE64')
 TOKEN_VALIDITY_MINUTES = 15
 
 # --- Firebase Setup ---
-# ... (Firebase setup code is the same) ...
 try:
     if FIREBASE_KEY_BASE64:
         decoded_key = base64.b64decode(FIREBASE_KEY_BASE64)
@@ -39,20 +38,24 @@ except Exception as e:
     logger.critical(f"FATAL: Firebase initialization failed. Error: {e}")
     exit()
 
-
 # --- BOT & FLASK INITIALIZATION ---
 app = Flask(__name__)
-# IMPORTANT: Updater ko yahan initialize karna hai taaki JobQueue mil sake
-updater = Updater(TOKEN)
+updater = Updater(TOKEN, use_context=True) # use_context=True is important for v13
 dispatcher = updater.dispatcher
-job_queue = updater.job_queue
 
 # --- BOT FUNCTIONS ---
 
 def start(update: Update, context: CallbackContext):
     """Sends the welcome message."""
-    # ... (Start function is the same) ...
-    welcome_text = "🚀 *𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗸𝗶𝗹𝗹𝗻𝗲𝗮𝘀𝘁!*\n\n" # ... and so on
+    welcome_text = (
+        "🚀 *𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗸𝗶𝗹𝗹𝗻𝗲𝗮𝘀𝘁!*\n\n"
+        "📚 *𝗚𝗲𝘁 𝗙𝗿𝗲𝗲 𝗔𝗰𝗰𝗲𝘀𝘀 𝘁𝗼 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗖𝗼𝗻𝘁𝗲𝗻𝘁* —\n"
+        "*𝗖𝗼𝘂𝗿𝘀𝗲𝘀, 𝗣𝗗𝗙 𝗕𝗼𝗼𝗸𝘀, 𝗣𝗮𝗶𝗱 𝗧𝗶𝗽𝘀 & 𝗧𝗿𝗶𝗰𝗸𝘀, 𝗦𝗸𝗶𝗹𝗹-𝗕𝗮𝘀𝗲𝗱 𝗠𝗮𝘁𝗲𝗿𝗶𝗮𝗹 & 𝗠𝗼𝗿𝗲!*\n\n"
+        "🧠 *𝗠𝗮𝘀𝘁𝗲𝗿 𝗡𝗲𝘄 𝗦𝗸𝗶𝗹𝗹𝘀 & 𝗟𝗲𝗮𝗿𝗻 𝗪𝗵𝗮𝘁 𝗥𝗲𝗮𝗹𝗹𝘆 𝗠𝗮𝘁𝘁𝗲𝗿𝘀* — *𝟭𝟬𝟬% 𝗙𝗥𝗘𝗘!*\n\n"
+        "💸 *𝗔𝗹𝗹 𝗧𝗼𝗽 𝗖𝗿𝗲𝗮𝘁𝗼𝗿𝘀' 𝗣𝗮𝗶𝗱 𝗖𝗼𝘂𝗿𝘀𝗲𝘀 𝗮𝘁 𝗡𝗼 𝗖𝗼𝘀𝘁!*\n\n"
+        "🔐 *𝗔𝗰𝗰𝗲𝘀𝘀 𝗶𝘀 𝘀𝗲𝗰𝘂𝗿𝗲𝗱 𝘃𝗶𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝗺𝗲𝗺𝗯𝗲𝗿𝘀𝗵𝗶𝗽.*\n\n"
+        "👉 *𝗣𝗹𝗲𝗮𝘀𝗲 𝗷𝗼𝗶𝗻 𝘁𝗵𝗲 𝗯𝗲𝗹𝗼𝘄 𝗰𝗵𝗮𝗻𝗻𝗲𝗹𝘀 𝘁𝗼 𝘂𝗻𝗹𝗼𝗰𝗸 𝘆𝗼𝘂𝗿 𝗱𝗮𝗶𝗹𝘆 𝗮𝗰𝗰𝗲𝘀𝘀 𝘁𝗼𝗸𝗲𝗻* 👇"
+    )
     keyboard = [
         [InlineKeyboardButton("📩 Join Skillneast", url=f"https://t.me/{CHANNEL_1_USERNAME}")],
         [InlineKeyboardButton("📩 Join Skillneast Backup", url=f"https://t.me/{CHANNEL_2_USERNAME}")],
@@ -63,76 +66,46 @@ def start(update: Update, context: CallbackContext):
     if update.message:
         update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
-
-# --- YEH FUNCTION BADLA GAYA HAI ---
+# --- YEH FUNCTION BADLA GAYA HAI (No delay) ---
 def get_token_handler(update: Update, context: CallbackContext):
-    """Schedules the token sending job after a delay, without blocking."""
+    """Generates and sends the token instantly without checking."""
     query = update.callback_query
+    user_id = query.from_user.id
     
-    # Turant message edit karo aur Telegram ko jawab de do
-    query.edit_message_text(text="🔄 *Verifying your status... Please wait.*", parse_mode='Markdown')
-    
-    # Data jo humein 5 second baad wale function mein chahiye
-    job_context = {
-        'chat_id': query.message.chat_id,
-        'message_id': query.message.message_id,
-        'user_id': query.from_user.id
-    }
-    
-    # 5 second baad `send_token_job` function ko chalao
-    context.job_queue.run_once(send_token_job, 5, context=job_context, name=f"token_job_{query.from_user.id}")
-    
-    query.answer() # Button click ka jawab do
-
-# --- YEH NAYA FUNCTION HAI ---
-def send_token_job(context: CallbackContext):
-    """This function is called by the JobQueue after 5 seconds."""
-    job = context.job
-    chat_id = job.context['chat_id']
-    message_id = job.context['message_id']
-    user_id = job.context['user_id']
-    
-    logger.info(f"5-second job running for user {user_id}")
+    logger.info(f"User {user_id} clicked 'I Joined'. Generating token instantly.")
     
     # Token generate karo
-    token = secrets.token_hex(8).upper()
+    token_string = f"{secrets.token_hex(6).upper()}/{secrets.token_hex(6).upper()}" # Example: 94E2DI2F/JG9WDX
+    
     current_time_seconds = int(time.time())
     expiry_timestamp_seconds = current_time_seconds + (TOKEN_VALIDITY_MINUTES * 60)
     
     try:
         ref = db.reference(f'users/{user_id}')
-        ref.set({'token': token, 'expiry_timestamp': expiry_timestamp_seconds, 'used': False})
+        ref.set({'token': token_string, 'expiry_timestamp': expiry_timestamp_seconds, 'used': False})
     except Exception as e:
-        logger.error(f"Firebase DB error during job for user {user_id}: {e}")
-        context.bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=message_id,
-            text="❌ An error occurred while saving your token. Please try again."
-        )
+        logger.error(f"Firebase DB error for user {user_id}: {e}")
+        query.answer("❌ An error occurred while generating your token. Please try again.", show_alert=True)
         return
-        
+    
+    # Text bilkul aapki image jaisa
     access_text = (
-        "✅ *Verification Complete!*\n\n"
         "🎉 *Access Granted!*\n\n"
-        f"Here is your one-time token. It's valid for *{TOKEN_VALIDITY_MINUTES} minutes*:\n\n"
-        f"`{token}`\n\n"
-        "Copy this token and paste it on our website to continue."
+        "Here is your _one-time token_ for today:\n\n"
+        f"`{token_string}`\n\n"
+        "✅ Paste this on the website to continue!\n"
+        "⚠️ *Note: If you leave any channel later, your access will be revoked automatically.*"
     )
+    
     keyboard = [
         [InlineKeyboardButton("🔐 Access Website", url=WEBSITE_URL)],
         [InlineKeyboardButton("👑 Owner", url=f"https://t.me/{OWNER_USERNAME}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Message ko edit karke token dikhao
-    context.bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=message_id,
-        text=access_text,
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
-
+    # Message ko edit karke token wala message dikhao
+    query.edit_message_text(text=access_text, reply_markup=reply_markup, parse_mode='Markdown')
+    query.answer("✅ Token Generated!")
 
 # --- HANDLER REGISTRATION ---
 dispatcher.add_handler(CommandHandler("start", start))
@@ -155,4 +128,4 @@ def set_webhook():
 
 @app.route('/')
 def index():
-    return 'Bot is alive!'
+    return 'Bot is alive and running!'
