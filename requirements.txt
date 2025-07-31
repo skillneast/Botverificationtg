@@ -1,2 +1,2 @@
-pip install pipreqs
-pipreqs .
+python-telegram-bot==13.15
+firebase-admin==6.0.1
