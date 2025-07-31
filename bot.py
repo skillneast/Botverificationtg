@@ -27,32 +27,22 @@ FIREBASE_KEY_BASE64 = os.environ.get('FIREBASE_KEY_BASE64')
 TOKEN_VALIDITY_MINUTES = 15
 
 # --- Firebase Setup ---
-try:
-    if FIREBASE_KEY_BASE64:
-        decoded_key = base64.b64decode(FIREBASE_KEY_BASE64)
-        firebase_key_dict = json.loads(decoded_key)
-        cred = credentials.Certificate(firebase_key_dict)
-        firebase_admin.initialize_app(cred, {'databaseURL': FIREBASE_DATABASE_URL})
-        logger.info("Firebase initialized successfully.")
-    else:
-        logger.warning("Firebase key not found. DB features will fail.")
-except Exception as e:
-    logger.error(f"Firebase initialization failed: {e}")
+# ... (Firebase setup code is the same) ...
 
 # --- BOT & FLASK INITIALIZATION ---
 app = Flask(__name__)
-bot = telegram.Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, use_context=True, workers=4)
+try:
+    bot = telegram.Bot(token=TOKEN)
+    dispatcher = Dispatcher(bot, None, use_context=True, workers=4)
+except Exception as e:
+    logger.critical(f"FATAL: Bot initialization failed. TOKEN is likely wrong. Error: {e}")
+    exit()
 
 # --- BOT FUNCTIONS ---
 def start(update: Update, context: CallbackContext):
+    # ... (Start function is the same) ...
     welcome_text = "🚀 *𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗸𝗶𝗹𝗹𝗻𝗲𝗮𝘀𝘁!*\n\n" + \
-                   "📚 *𝗚𝗲𝘁 𝗙𝗿𝗲𝗲 𝗔𝗰𝗰𝗲𝘀𝘀 𝘁𝗼 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗖𝗼𝗻𝘁𝗲𝗻𝘁* —\n" + \
-                   "*𝗖𝗼𝘂𝗿𝘀𝗲𝘀, 𝗣𝗗𝗙 𝗕𝗼𝗼𝗸𝘀, 𝗣𝗮𝗶𝗱 𝗧𝗶𝗽𝘀 & 𝗧𝗿𝗶𝗰𝗸𝘀, 𝗦𝗸𝗶𝗹𝗹-𝗕𝗮𝘀𝗲𝗱 𝗠𝗮𝘁𝗲𝗿𝗶𝗮𝗹 & 𝗠𝗼𝗿𝗲!*\n\n" + \
-                   "🧠 *𝗠𝗮𝘀𝘁𝗲𝗿 𝗡𝗲𝘄 𝗦𝗸𝗶𝗹𝗹𝘀 & 𝗟𝗲𝗮𝗿𝗻 𝗪𝗵𝗮𝘁 𝗥𝗲𝗮𝗹𝗹𝘆 𝗠𝗮𝘁𝘁𝗲𝗿𝘀* — *𝟭𝟬𝟬% 𝗙𝗥𝗘𝗘!*\n\n" + \
-                   "💸 *𝗔𝗹𝗹 𝗧𝗼𝗽 𝗖𝗿𝗲𝗮𝘁𝗼𝗿𝘀' 𝗣𝗮𝗶𝗱 𝗖𝗼𝘂𝗿𝘀𝗲𝘀 𝗮𝘁 𝗡𝗼 𝗖𝗼𝘀𝘁!*\n\n" + \
-                   "🔐 *𝗔𝗰𝗰𝗲𝘀𝘀 𝗶𝘀 𝘀𝗲𝗰𝘂𝗿𝗲𝗱 𝘃𝗶𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝗺𝗲𝗺𝗯𝗲𝗿𝘀𝗵𝗶𝗽.*\n\n" + \
-                   "👉 *𝗣𝗹𝗲𝗮𝘀𝗲 𝗷𝗼𝗶𝗻 𝘁𝗵𝗲 𝗯𝗲𝗹𝗼𝘄 𝗰𝗵𝗮𝗻𝗻𝗲𝗹𝘀 𝘁𝗼 𝘂𝗻𝗹𝗼𝗰𝗸 𝘆𝗼𝘂𝗿 𝗱𝗮𝗶𝗹𝘆 𝗮𝗰𝗰𝗲𝘀𝘀 𝘁𝗼𝗸𝗲𝗻* 👇"
+                   "📚 *𝗚𝗲𝘁 𝗙𝗿𝗲𝗲 𝗔𝗰𝗰𝗲𝘀𝘀 𝘁𝗼 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗖𝗼𝗻𝘁𝗲𝗻𝘁* —\n" #...and so on
     
     keyboard = [
         [InlineKeyboardButton("📩 Join Skillneast", url=f"https://t.me/{CHANNEL_1_USERNAME}")],
@@ -64,21 +54,49 @@ def start(update: Update, context: CallbackContext):
     if update.message:
         update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
+
+# --- YEH FUNCTION BADLA GAYA HAI ---
 def check_join_status(update: Update, context: CallbackContext):
     query = update.callback_query
     user_id = query.from_user.id
+    
+    logger.info(f"Checking membership for user {user_id}...")
+    
     try:
+        # Step 1: Pehle channel ko check karo
+        logger.info(f"Checking channel 1: @{CHANNEL_1_USERNAME}")
         member1 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_1_USERNAME}", user_id=user_id)
-        member2 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_2_USERNAME}", user_id=user_id)
-        
-        if member1.status not in ['left', 'kicked'] and member2.status not in ['left', 'kicked']:
-            generate_and_send_token(query, user_id)
-        else:
-            query.answer("❌ Please join both channels first!", show_alert=True)
-    except Exception as e:
-        logger.error(f"Error in check_join_status for user {user_id}: {e}")
-        query.answer("Error: Make sure bot is an admin in both channels and you have joined.", show_alert=True)
+        if member1.status in ['left', 'kicked']:
+            logger.warning(f"User {user_id} is not in channel 1. Status: {member1.status}")
+            query.answer("❌ You are not in the first channel. Please join.", show_alert=True)
+            return
 
+        # Step 2: Doosre channel ko check karo
+        logger.info(f"Checking channel 2: @{CHANNEL_2_USERNAME}")
+        member2 = context.bot.get_chat_member(chat_id=f"@{CHANNEL_2_USERNAME}", user_id=user_id)
+        if member2.status in ['left', 'kicked']:
+            logger.warning(f"User {user_id} is not in channel 2. Status: {member2.status}")
+            query.answer("❌ You are not in the second channel. Please join.", show_alert=True)
+            return
+
+        # Step 3: Agar sab theek hai, to token do
+        logger.info(f"User {user_id} is in both channels. Granting token.")
+        generate_and_send_token(query, user_id)
+
+    except Exception as e:
+        # YEH SABSE ZAROORI HISSA HAI
+        # Yeh hamein Telegram se mila hua asli error dikhayega
+        logger.error(f"--- REAL TELEGRAM API ERROR --- for user {user_id}: {e}")
+        query.answer("Error. Could not verify membership. Check server logs for details.", show_alert=True)
+
+
+def generate_and_send_token(query, user_id):
+    # ... (Generate token function is the same) ...
+    pass
+
+# ... (baaki ka poora code neeche hai, usse copy kar lein) ...
+
+# --- Full functions to avoid errors ---
 def generate_and_send_token(query, user_id):
     token = secrets.token_hex(8).upper()
     current_time_seconds = int(time.time())
@@ -122,4 +140,4 @@ def set_webhook():
 
 @app.route('/')
 def index():
-    return 'Bot is alive!'
+    return 'Bot is alive and running!'
