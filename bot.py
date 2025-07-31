@@ -8,22 +8,25 @@ import secrets
 import json
 import base64
 import time
-from flask import Flask, request # <- YAHAN 'request' ADD HUA HAI
+from flask import Flask, request
 import logging
 
-# --- Logging Setup ---
+# --- Logging Setup (Taaki humein errors logs mein saaf dikhein) ---
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION (Environment Variables se) ---
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL') # Render service ka URL
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 
+# Hardcoded values (jaisa aapne kaha tha)
 CHANNEL_1_ID = "skillneastreal"
 CHANNEL_2_ID = "skillneast"
 OWNER_USERNAME = "neasthub"
+
+# Baaki ke Environment Variables
 WEBSITE_URL = os.environ.get('WEBSITE_URL', 'https://render.com')
 FIREBASE_DATABASE_URL = os.environ.get('FIREBASE_DATABASE_URL')
 FIREBASE_KEY_BASE64 = os.environ.get('FIREBASE_KEY_BASE64')
@@ -31,62 +34,22 @@ TOKEN_VALIDITY_MINUTES = 15
 
 # --- FIREBASE SETUP ---
 try:
-    decoded_key = base64.b64decode(FIREBASE_KEY_BASE64)
-    firebase_key_dict = json.loads(decoded_key)
-    cred = credentials.Certificate(firebase_key_dict)
-    firebase_admin.initialize_app(cred, {'databaseURL': FIREBASE_DATABASE_URL})
-    logger.info("Firebase initialized successfully.")
+    if FIREBASE_KEY_BASE64:
+        decoded_key = base64.b64decode(FIREBASE_KEY_BASE64)
+        firebase_key_dict = json.loads(decoded_key)
+        cred = credentials.Certificate(firebase_key_dict)
+        firebase_admin.initialize_app(cred, {'databaseURL': FIREBASE_DATABASE_URL})
+        logger.info("Firebase initialized successfully.")
+    else:
+        logger.warning("FIREBASE_KEY_BASE64 not found. Firebase not initialized.")
 except Exception as e:
     logger.critical(f"Firebase initialization failed: {e}")
-    exit()
+    # We don't exit here, maybe the bot can run without DB for some reason
 
 # --- BOT FUNCTIONS ---
-# start, check_join_status, generate_and_send_token functions bilkul waise hi rahenge
-# ... (Neeche main inka poora code de raha hoon) ...
 
 def start(update: Update, context: CallbackContext):
-    # ... (poora code)
-def check_join_status(update: Update, context: CallbackContext):
-    # ... (poora code)
-def generate_and_send_token(query, user_id):
-    # ... (poora code)
-
-# --- WEBHOOK SETUP ---
-app = Flask(__name__)
-
-# Initialize bot and dispatcher
-bot = telegram.Bot(token=TOKEN)
-dispatcher = Dispatcher(bot, None, use_context=True)
-
-# Register handlers
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CallbackQueryHandler(check_join_status, pattern='^check_join$'))
-
-@app.route(f'/{TOKEN}', methods=['POST'])
-def respond():
-    # Telegram se aaye hue update ko process karo
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return 'ok'
-
-@app.route('/setwebhook', methods=['GET', 'POST'])
-def set_webhook():
-    # Webhook set karne ke liye URL
-    # WEBHOOK_URL environment variable se aayega
-    if WEBHOOK_URL:
-        s = bot.set_webhook(f'{WEBHOOK_URL}/{TOKEN}')
-        if s:
-            return "webhook setup ok"
-        else:
-            return "webhook setup failed"
-    return "No WEBHOOK_URL set."
-
-@app.route('/')
-def index():
-    return 'Bot is alive!'
-
-# --- Yahan se main functions dobara de raha hoon taaki koi galti na ho ---
-def start(update: Update, context: CallbackContext):
+    """Sends welcome message and buttons."""
     welcome_text = (
         "🚀 *𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗸𝗶𝗹𝗹𝗻𝗲𝗮𝘀𝘁!*\n\n"
         "📚 *𝗚𝗲𝘁 𝗙𝗿𝗲𝗲 𝗔𝗰𝗰𝗲𝘀𝘀 𝘁𝗼 𝗣𝗿𝗲𝗺𝗶𝘂𝗺 𝗖𝗼𝗻𝘁𝗲𝗻𝘁* —\n"
@@ -109,6 +72,7 @@ def start(update: Update, context: CallbackContext):
     update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 def check_join_status(update: Update, context: CallbackContext):
+    """Checks channel membership and replies."""
     query = update.callback_query
     user_id = query.from_user.id
     try:
@@ -123,6 +87,7 @@ def check_join_status(update: Update, context: CallbackContext):
         query.answer("An error occurred. Please try again.", show_alert=True)
 
 def generate_and_send_token(query, user_id):
+    """Generates and sends the token."""
     token = secrets.token_hex(8).upper()
     current_time_seconds = int(time.time())
     expiry_timestamp_seconds = current_time_seconds + (TOKEN_VALIDITY_MINUTES * 60)
@@ -142,6 +107,36 @@ def generate_and_send_token(query, user_id):
     query.edit_message_text(text=access_text, reply_markup=reply_markup, parse_mode='Markdown')
     query.answer("✅ Token Generated!")
 
+# --- WEB SERVER (WEBHOOK) SETUP ---
+app = Flask(__name__)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 8080)))
+# Initialize bot and dispatcher
+bot = telegram.Bot(token=TOKEN)
+dispatcher = Dispatcher(bot, None, use_context=True)
+
+# Register handlers
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CallbackQueryHandler(check_join_status, pattern='^check_join$'))
+
+@app.route(f'/{TOKEN}', methods=['POST'])
+def respond():
+    """Processes updates from Telegram."""
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return 'ok'
+
+@app.route('/setwebhook', methods=['GET', 'POST'])
+def set_webhook():
+    """Sets the webhook."""
+    if WEBHOOK_URL:
+        s = bot.set_webhook(f'{WEBHOOK_URL}/{TOKEN}')
+        if s:
+            return "webhook setup ok"
+        else:
+            return "webhook setup failed"
+    return "No WEBHOOK_URL environment variable set."
+
+@app.route('/')
+def index():
+    """A simple page to show the bot is alive."""
+    return 'Bot is alive and running with webhook!'
